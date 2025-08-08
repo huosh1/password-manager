@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#4a9eff">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Passwords">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/static/manifest.json">
+    
+    <!-- Favicon et icônes -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/icon-32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/icon-16.png">
+    <link rel="apple-touch-icon" href="/static/icon-180.png">
+    
+    <title>🔐 Password Manager</title>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            color: white;
+            min-height: 100vh;
+            min-height: -webkit-fill-available; /* iOS Safari fix */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+        
+        /* Fix pour iOS Safari */
+        html {
+            height: -webkit-fill-available;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+        
+        .logo {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        .title {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        
+        .subtitle {
+            color: #b0b0b0;
+            margin-bottom: 3rem;
+        }
+        
+        .login-form {
+            background: rgba(45, 45, 45, 0.9);
+            backdrop-filter: blur(20px);
+            padding: 2rem;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+        
+        .input-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        input[type="password"] {
+            width: 100%;
+            padding: 1.2rem;
+            border: none;
+            border-radius: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 1.1rem;
+            outline: none;
+            transition: all 0.3s ease;
+            -webkit-appearance: none;
+        }
+        
+        input[type="password"]:focus {
+            background: rgba(255, 255, 255, 0.15);
+            box-shadow: 0 0 0 3px rgba(74, 158, 255, 0.5);
+            transform: translateY(-2px);
+        }
+        
+        input::placeholder {
+            color: #b0b0b0;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 1.2rem;
+            border: none;
+            border-radius: 15px;
+            background: linear-gradient(135deg, #4a9eff 0%, #3d8bdb 100%);
+            color: white;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(74, 158, 255, 0.4);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .btn.loading::after {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 20px;
+            height: 20px;
+            margin: -10px;
+            border: 2px solid transparent;
+            border-top: 2px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .status {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.3s ease;
+        }
+        
+        .status.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .status.error {
+            background: rgba(255, 107, 107, 0.15);
+            color: #ff6b6b;
+            border: 1px solid rgba(255, 107, 107, 0.3);
+        }
+        
+        .status.loading {
+            background: rgba(74, 158, 255, 0.15);
+            color: #4a9eff;
+            border: 1px solid rgba(74, 158, 255, 0.3);
+        }
+        
+        .status.success {
+            background: rgba(0, 212, 170, 0.15);
+            color: #00d4aa;
+            border: 1px solid rgba(0, 212, 170, 0.3);
+        }
+        
+        .pwa-banner {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(74, 158, 255, 0.95);
+            color: white;
+            padding: 1rem;
+            border-radius: 12px;
+            display: none;
+            align-items: center;
+            gap: 1rem;
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+        }
+        
+        .pwa-banner.show {
+            display: flex;
+            animation: slideUp 0.5s ease;
+        }
+        
+        @keyframes slideUp {
+            from {
+                transform: translateY(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        .pwa-banner button {
+            background: white;
+            color: #4a9eff;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        
+        @media (max-width: 480px) {
+            .logo {
+                font-size: 3rem;
+            }
+            
+            .title {
+                font-size: 1.5rem;
+            }
+            
+            .login-form {
+                padding: 1.5rem;
+            }
+            
+            body {
+                padding: 10px;
+            }
+        }
+        
+        /* Fix pour les écrans avec encoche (iPhone X+) */
+        @supports (padding: max(0px)) {
+            body {
+                padding-left: max(20px, env(safe-area-inset-left));
+                padding-right: max(20px, env(safe-area-inset-right));
+                padding-bottom: max(20px, env(safe-area-inset-bottom));
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🔐</div>
+        <h1 class="title">Password Manager</h1>
+        <p class="subtitle">Secure • Simple • Synchronized</p>
+        
+        <form class="login-form" id="loginForm">
+            <div class="input-group">
+                <input 
+                    type="password" 
+                    id="masterPassword" 
+                    placeholder="Master Password"
+                    autocomplete="current-password"
+                    required
+                />
+            </div>
+            
+            <button type="submit" class="btn" id="loginBtn">
+                🔓 Unlock
+            </button>
+            
+            <div id="status" class="status"></div>
+        </form>
+    </div>
+    
+    <!-- Banner d'installation PWA -->
+    <div class="pwa-banner" id="installBanner">
+        <div>
+            <strong>📱 Install App</strong><br>
+            Add to home screen for quick access
+        </div>
+        <button id="installBtn">Install</button>
+        <button id="dismissBtn">×</button>
+    </div>
+
+    <script>
+        // Variables globales
+        let deferredPrompt = null;
+        const installBanner = document.getElementById('installBanner');
+        const installBtn = document.getElementById('installBtn');
+        const dismissBtn = document.getElementById('dismissBtn');
+        
+        // Éléments du formulaire
+        const form = document.getElementById('loginForm');
+        const passwordInput = document.getElementById('masterPassword');
+        const loginBtn = document.getElementById('loginBtn');
+        const status = document.getElementById('status');
+        
+        // Fonctions utilitaires
+        function showStatus(message, type = 'loading') {
+            status.textContent = message;
+            status.className = `status ${type} show`;
+            
+            if (type === 'success') {
+                setTimeout(() => {
+                    status.classList.remove('show');
+                }, 3000);
+            }
+        }
+        
+        function hideStatus() {
+            status.classList.remove('show');
+        }
+        
+        // Gestion PWA
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            
+            // Montrer le banner d'installation si pas déjà installé
+            if (!window.matchMedia('(display-mode: standalone)').matches) {
+                setTimeout(() => {
+                    installBanner.classList.add('show');
+                }, 2000);
+            }
+        });
+        
+        // Installation PWA
+        installBtn.addEventListener('click', async () => {
+            if (!deferredPrompt) return;
+            
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            
+            if (outcome === 'accepted') {
+                showStatus('App installed successfully! 🎉', 'success');
+            }
+            
+            deferredPrompt = null;
+            installBanner.classList.remove('show');
+        });
+        
+        // Fermer banner
+        dismissBtn.addEventListener('click', () => {
+            installBanner.classList.remove('show');
+        });
+        
+        // Détection si déjà installé
+        if (window.matchMedia('(display-mode: standalone)').matches) {
+            console.log('PWA is installed');
+        }
+        
+        // Enregistrement du Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/sw.js')
+                    .then((registration) => {
+                        console.log('SW registered: ', registration);
+                    })
+                    .catch((registrationError) => {
+                        console.log('SW registration failed: ', registrationError);
+                    });
+            });
+        }
+        
+        // Gestion du formulaire de connexion
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const masterPassword = passwordInput.value.trim();
+            if (!masterPassword) {
+                showStatus('Please enter your master password', 'error');
+                passwordInput.focus();
+                return;
+            }
+            
+            // UI de chargement
+            loginBtn.disabled = true;
+            loginBtn.classList.add('loading');
+            loginBtn.textContent = '';
+            showStatus('Authenticating...', 'loading');
+            
+            try {
+                const response = await fetch('/api/auth', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        master_password: masterPassword
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showStatus('Welcome back! 🎉', 'success');
+                    
+                    // Redirection avec animation
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 1000);
+                } else {
+                    showStatus(result.error || 'Authentication failed', 'error');
+                    passwordInput.focus();
+                    passwordInput.select();
+                }
+            } catch (error) {
+                console.error('Auth error:', error);
+                showStatus('Connection error - please check your internet', 'error');
+            } finally {
+                // Reset UI
+                loginBtn.disabled = false;
+                loginBtn.classList.remove('loading');
+                loginBtn.textContent = '🔓 Unlock';
+            }
+        });
+        
+        // Focus automatique et UX
+        passwordInput.focus();
+        
+        // Gestion des erreurs réseau
+        window.addEventListener('online', () => {
+            showStatus('Connection restored', 'success');
+        });
+        
+        window.addEventListener('offline', () => {
+            showStatus('You are offline', 'error');
+        });
+        
+        // Vibration sur erreur (mobile)
+        function vibrateOnError() {
+            if ('vibrate' in navigator) {
+                navigator.vibrate([100, 50, 100]);
+            }
+        }
+        
+        // Améliorer l'UX mobile
+        passwordInput.addEventListener('blur', () => {
+            // Fix pour iOS Safari qui zoom sur les inputs
+            window.scrollTo(0, 0);
+        });
+    </script>
+</body>
+</html>.textContent = '🔓 Unlock';
+                }
+            } catch (error) {
+                showStatus('Connection error', 'error');
+                loginBtn.disabled = false;
+                loginBtn.textContent = '🔓 Unlock';
+            }
+        });
+        
+        // Focus sur le champ password
+        passwordInput.focus();
+    </script>
+</body>
+</html>
