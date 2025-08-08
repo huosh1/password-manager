@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Application Flask PWA CORRIGÉE - Routes et templates fonctionnels
+Application Flask PWA CORRIGÉE - Version finale compatible Flask 2.3.3
 """
 
 from flask import Flask, render_template_string, request, jsonify, session, Response
@@ -109,6 +109,41 @@ class PWAPasswordManager:
 # Instance globale
 manager = PWAPasswordManager()
 
+def init_static_files():
+    """Initialise les fichiers statiques nécessaires"""
+    try:
+        if not os.path.exists('static'):
+            os.makedirs('static')
+            print("📁 Created static folder")
+        
+        # Créer manifest.json
+        manifest = {
+            "name": "Password Manager",
+            "short_name": "Passwords",
+            "description": "Secure password manager with AES encryption",
+            "start_url": "/",
+            "display": "standalone",
+            "background_color": "#1a1a1a",
+            "theme_color": "#4a9eff",
+            "orientation": "portrait-primary",
+            "icons": [
+                {
+                    "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkyIiBoZWlnaHQ9IjE5MiIgdmlld0JveD0iMCAwIDE5MiAxOTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxOTIiIGhlaWdodD0iMTkyIiByeD0iNDAiIGZpbGw9IiM0YTllZmYiLz4KPHN2ZyB4PSI0OCIgeT0iNDgiIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJ3aGl0ZSI+CjxwYXRoIGQ9Ik0xOCAxMGgtMVY2YzAtMi43Ni0yLjI0LTUtNS01UzIgMy4yNCAyIDZ2NGgtMWMtMS4xIDAtMiAuOS0yIDJ2MTBjMCAxLjEuOSAyIDIgMmgxNmMxLjEgMCAyLS45IDItMlYxMmMwLTEuMS0uOS0yLTItMnpNOC45IDZjMC0xLjcxIDEuMzktMy4xIDMuMS0zLjFzMy4xIDEuMzkgMy4xIDMuMXY0SDguOVY2eiIvPgo8L3N2Zz4KPC9zdmc+",
+                    "sizes": "192x192",
+                    "type": "image/svg+xml"
+                }
+            ]
+        }
+        
+        manifest_path = os.path.join('static', 'manifest.json')
+        if not os.path.exists(manifest_path):
+            with open(manifest_path, 'w') as f:
+                json.dump(manifest, f, indent=2)
+            print("📄 Created manifest.json")
+            
+    except Exception as e:
+        print(f"Init static files error: {e}")
+
 # Templates intégrés
 LOGIN_HTML = '''<!DOCTYPE html>
 <html lang="en">
@@ -213,6 +248,7 @@ LOGIN_HTML = '''<!DOCTYPE html>
                 }
             } catch (error) {
                 showStatus('Connection error', 'error');
+                console.error('Auth error:', error);
             } finally {
                 btn.disabled = false;
                 btn.textContent = '🔓 Unlock';
@@ -230,6 +266,7 @@ MAIN_HTML = '''<!DOCTYPE html>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#4a9eff">
+    <link rel="manifest" href="/static/manifest.json">
     <title>🔐 My Passwords</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -342,9 +379,10 @@ MAIN_HTML = '''<!DOCTYPE html>
                     passwords = result.passwords;
                     renderPasswords();
                 } else {
-                    document.getElementById('passwordList').innerHTML = '<div class="empty-state"><div class="icon">🔐</div><p>No passwords yet</p></div>';
+                    document.getElementById('passwordList').innerHTML = '<div class="empty-state"><div class="icon">🔐</div><p>No passwords yet. Click + to add one!</p></div>';
                 }
             } catch (error) {
+                console.error('Load error:', error);
                 showToast('Connection error', 'error');
             }
         }
@@ -356,7 +394,7 @@ MAIN_HTML = '''<!DOCTYPE html>
             );
             
             if (filtered.length === 0) {
-                list.innerHTML = '<div class="empty-state"><div class="icon">🔐</div><p>No passwords found</p></div>';
+                list.innerHTML = '<div class="empty-state"><div class="icon">🔍</div><p>No passwords found</p></div>';
                 return;
             }
             
@@ -365,7 +403,7 @@ MAIN_HTML = '''<!DOCTYPE html>
                     <div class="card-header">
                         <div class="card-title">${escapeHtml(account)}</div>
                         <div class="card-actions" onclick="event.stopPropagation()">
-                            <button class="btn-icon" onclick="copyPassword('${escapeHtml(account)}')" title="Copy">📋</button>
+                            <button class="btn-icon" onclick="copyPassword('${escapeHtml(account)}')" title="Copy Password">📋</button>
                             <button class="btn-icon" onclick="editPassword('${escapeHtml(account)}')" title="Edit">✏️</button>
                         </div>
                     </div>
@@ -382,77 +420,22 @@ MAIN_HTML = '''<!DOCTYPE html>
             const password = passwords[account].password;
             
             try {
-                // Méthode 1: API Clipboard moderne
-                if (navigator.clipboard && window.isSecureContext) {
+                if (navigator.clipboard) {
                     await navigator.clipboard.writeText(password);
                     showToast('Password copied! 📋');
-                    return;
-                }
-                
-                // Méthode 2: Fallback pour mobile
-                const textarea = document.createElement('textarea');
-                textarea.value = password;
-                textarea.style.position = 'fixed';
-                textarea.style.left = '-9999px';
-                textarea.style.top = '-9999px';
-                document.body.appendChild(textarea);
-                
-                // Focus et sélection
-                textarea.focus();
-                textarea.select();
-                textarea.setSelectionRange(0, password.length);
-                
-                // Commande de copie
-                const successful = document.execCommand('copy');
-                document.body.removeChild(textarea);
-                
-                if (successful) {
-                    showToast('Password copied! 📋');
-                    
-                    // Vibration sur mobile si supportée
-                    if ('vibrate' in navigator) {
-                        navigator.vibrate(50);
-                    }
                 } else {
-                    throw new Error('Copy command failed');
+                    const textarea = document.createElement('textarea');
+                    textarea.value = password;
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textarea);
+                    showToast('Password copied! 📋');
                 }
-                
             } catch (error) {
                 console.error('Copy failed:', error);
-                
-                // Méthode 3: Affichage du mot de passe pour copie manuelle
-                showPasswordForCopy(password);
+                showToast('Copy failed', 'error');
             }
-        }
-        
-        function showPasswordForCopy(password) {
-            // Créer un modal temporaire avec le mot de passe visible
-            const copyModal = document.createElement('div');
-            copyModal.className = 'modal show';
-            copyModal.innerHTML = `
-                <div class="modal-content" style="max-width: 350px;">
-                    <div class="modal-header">
-                        <h2>📋 Copy Password</h2>
-                        <button class="btn-close" onclick="this.closest('.modal').remove()">&times;</button>
-                    </div>
-                    <div style="text-align: center;">
-                        <p style="margin-bottom: 1rem; color: #b0b0b0;">Tap and hold to select all:</p>
-                        <div style="background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 8px; margin-bottom: 1rem; font-family: monospace; font-size: 1.1rem; word-break: break-all; user-select: all;">
-                            ${escapeHtml(password)}
-                        </div>
-                        <button class="btn" onclick="this.closest('.modal').remove()">Done</button>
-                    </div>
-                </div>
-            `;
-            
-            document.body.appendChild(copyModal);
-            
-            // Auto-suppression après 30 secondes pour sécurité
-            setTimeout(() => {
-                if (copyModal.parentNode) {
-                    copyModal.remove();
-                }
-            }, 30000);
         }
         
         function viewPassword(account) {
@@ -491,72 +474,21 @@ MAIN_HTML = '''<!DOCTYPE html>
         
         async function copyText(text, successMessage = 'Copied!') {
             try {
-                // Méthode 1: API Clipboard moderne
-                if (navigator.clipboard && window.isSecureContext) {
+                if (navigator.clipboard) {
                     await navigator.clipboard.writeText(text);
-                    showToast(successMessage);
-                    return;
-                }
-                
-                // Méthode 2: Fallback textarea
-                const textarea = document.createElement('textarea');
-                textarea.value = text;
-                textarea.style.position = 'fixed';
-                textarea.style.left = '-9999px';
-                textarea.style.top = '-9999px';
-                document.body.appendChild(textarea);
-                
-                textarea.focus();
-                textarea.select();
-                textarea.setSelectionRange(0, text.length);
-                
-                const successful = document.execCommand('copy');
-                document.body.removeChild(textarea);
-                
-                if (successful) {
-                    showToast(successMessage);
-                    if ('vibrate' in navigator) {
-                        navigator.vibrate(50);
-                    }
                 } else {
-                    throw new Error('Copy failed');
+                    const textarea = document.createElement('textarea');
+                    textarea.value = text;
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textarea);
                 }
-                
+                showToast(successMessage);
             } catch (error) {
                 console.error('Copy error:', error);
-                // Méthode 3: Modal pour copie manuelle
-                showTextForCopy(text, successMessage.includes('Password') ? 'Password' : 'Text');
+                showToast('Copy failed', 'error');
             }
-        }
-        
-        function showTextForCopy(text, type) {
-            const copyModal = document.createElement('div');
-            copyModal.className = 'modal show';
-            copyModal.innerHTML = `
-                <div class="modal-content" style="max-width: 350px;">
-                    <div class="modal-header">
-                        <h2>📋 Copy ${type}</h2>
-                        <button class="btn-close" onclick="this.closest('.modal').remove()">&times;</button>
-                    </div>
-                    <div style="text-align: center;">
-                        <p style="margin-bottom: 1rem; color: #b0b0b0; font-size: 0.9rem;">Tap and hold to select all:</p>
-                        <div style="background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 8px; margin-bottom: 1rem; font-family: monospace; font-size: 1rem; word-break: break-all; user-select: all; -webkit-user-select: all; -moz-user-select: all; border: 2px dashed rgba(74, 158, 255, 0.5);">
-                            ${escapeHtml(text)}
-                        </div>
-                        <p style="font-size: 0.8rem; color: #888; margin-bottom: 1rem;">Tap and hold the text above, then "Copy"</p>
-                        <button class="btn" onclick="this.closest('.modal').remove()">Done</button>
-                    </div>
-                </div>
-            `;
-            
-            document.body.appendChild(copyModal);
-            
-            // Auto-remove après 30 secondes
-            setTimeout(() => {
-                if (copyModal.parentNode) {
-                    copyModal.remove();
-                }
-            }, 30000);
         }
         
         function openAddModal() {
@@ -565,27 +497,28 @@ MAIN_HTML = '''<!DOCTYPE html>
                 <form onsubmit="return savePassword(event)">
                     <div class="form-group">
                         <label class="form-label">Account</label>
-                        <input type="text" class="form-input" id="account" required>
+                        <input type="text" class="form-input" id="account" required placeholder="e.g. Gmail, Facebook">
                     </div>
                     <div class="form-group">
                         <label class="form-label">Username</label>
-                        <input type="text" class="form-input" id="username" required>
+                        <input type="text" class="form-input" id="username" required placeholder="Your username or email">
                     </div>
                     <div class="form-group">
                         <label class="form-label">Password</label>
                         <div class="input-group">
-                            <input type="text" class="form-input" id="password" value="${data ? escapeHtml(data.password) : ''}" required style="font-family: monospace;">
-                            <button type="button" class="btn-sm" onclick="generatePassword()">🎲</button>
+                            <input type="text" class="form-input" id="password" required style="font-family: monospace;" placeholder="Enter or generate password">
+                            <button type="button" class="btn-sm" onclick="generatePassword()" title="Generate">🎲</button>
                         </div>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Notes</label>
-                        <input type="text" class="form-input" id="notes">
+                        <label class="form-label">Notes (optional)</label>
+                        <input type="text" class="form-input" id="notes" placeholder="Additional notes">
                     </div>
-                    <button type="submit" class="btn">Save</button>
+                    <button type="submit" class="btn">Save Password</button>
                 </form>
             `;
             document.getElementById('modal').classList.add('show');
+            setTimeout(() => document.getElementById('account').focus(), 100);
         }
         
         function editPassword(account) {
@@ -604,7 +537,7 @@ MAIN_HTML = '''<!DOCTYPE html>
                     <div class="form-group">
                         <label class="form-label">Password</label>
                         <div class="input-group">
-                            <input type="password" class="form-input" id="password" value="${escapeHtml(data.password)}" required>
+                            <input type="text" class="form-input" id="password" value="${escapeHtml(data.password)}" required style="font-family: monospace;">
                             <button type="button" class="btn-sm" onclick="generatePassword()">🎲</button>
                         </div>
                     </div>
@@ -612,7 +545,7 @@ MAIN_HTML = '''<!DOCTYPE html>
                         <label class="form-label">Notes</label>
                         <input type="text" class="form-input" id="notes" value="${escapeHtml(data.notes || '')}">
                     </div>
-                    <button type="submit" class="btn">Update</button>
+                    <button type="submit" class="btn">Update Password</button>
                 </form>
             `;
             document.getElementById('modal').classList.add('show');
@@ -626,6 +559,11 @@ MAIN_HTML = '''<!DOCTYPE html>
             const password = document.getElementById('password').value.trim();
             const notes = document.getElementById('notes').value.trim();
             
+            if (!account || !username || !password) {
+                showToast('Please fill all required fields', 'error');
+                return false;
+            }
+            
             try {
                 const response = await fetch('/api/passwords', {
                     method: 'POST',
@@ -636,13 +574,14 @@ MAIN_HTML = '''<!DOCTYPE html>
                 const result = await response.json();
                 
                 if (result.success) {
-                    showToast('Password saved!');
+                    showToast('Password saved! 🎉');
                     closeModal();
                     loadPasswords();
                 } else {
-                    showToast(result.error, 'error');
+                    showToast(result.error || 'Save failed', 'error');
                 }
             } catch (error) {
+                console.error('Save error:', error);
                 showToast('Save failed', 'error');
             }
             
@@ -655,14 +594,17 @@ MAIN_HTML = '''<!DOCTYPE html>
                 const result = await response.json();
                 if (result.success) {
                     document.getElementById('password').value = result.password;
+                    showToast('Password generated! 🎲');
                 }
             } catch (error) {
+                // Fallback local generation
                 const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
                 let password = '';
                 for (let i = 0; i < 16; i++) {
                     password += chars.charAt(Math.floor(Math.random() * chars.length));
                 }
                 document.getElementById('password').value = password;
+                showToast('Password generated! 🎲');
             }
         }
         
@@ -671,8 +613,13 @@ MAIN_HTML = '''<!DOCTYPE html>
         }
         
         async function logout() {
-            await fetch('/api/logout', { method: 'POST' });
-            location.reload();
+            try {
+                await fetch('/api/logout', { method: 'POST' });
+                showToast('Logged out');
+                setTimeout(() => location.reload(), 1000);
+            } catch (error) {
+                location.reload();
+            }
         }
         
         function showToast(message, type = 'success') {
@@ -680,16 +627,28 @@ MAIN_HTML = '''<!DOCTYPE html>
             toast.className = 'toast ' + type;
             toast.textContent = message;
             document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.remove();
+                }
+            }, 3000);
         }
         
         function escapeHtml(text) {
             const div = document.createElement('div');
-            div.textContent = text;
+            div.textContent = text || '';
             return div.innerHTML;
         }
         
+        // Initialiser au chargement
         loadPasswords();
+        
+        // Gestion du clavier
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
     </script>
 </body>
 </html>'''
@@ -699,6 +658,9 @@ MAIN_HTML = '''<!DOCTYPE html>
 def index():
     """Route principale CORRIGÉE"""
     try:
+        # Initialiser les fichiers statiques dès la première requête
+        init_static_files()
+        
         if session.get('authenticated'):
             return render_template_string(MAIN_HTML)
         else:
@@ -734,6 +696,9 @@ def get_passwords():
     
     try:
         crypto = manager.get_crypto()
+        if not crypto:
+            return jsonify({"success": False, "error": "Not authenticated"}), 401
+            
         passwords = manager.load_passwords()
         decrypted = {}
         
@@ -741,7 +706,8 @@ def get_passwords():
             try:
                 data = json.loads(crypto.decrypt(encrypted))
                 decrypted[account] = data
-            except:
+            except Exception as e:
+                print(f"Decrypt error for {account}: {e}")
                 continue
         
         return jsonify({"success": True, "passwords": decrypted})
@@ -758,15 +724,21 @@ def save_password():
     
     try:
         data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "error": "No data"})
+            
         account = data.get('account', '').strip()
         username = data.get('username', '').strip()
         password = data.get('password', '').strip()
         notes = data.get('notes', '').strip()
         
         if not all([account, username, password]):
-            return jsonify({"success": False, "error": "Missing fields"})
+            return jsonify({"success": False, "error": "Missing required fields"})
         
         crypto = manager.get_crypto()
+        if not crypto:
+            return jsonify({"success": False, "error": "Not authenticated"}), 401
+            
         passwords = manager.load_passwords()
         
         password_data = {
@@ -802,6 +774,28 @@ def logout():
     session.clear()
     return jsonify({"success": True})
 
+@app.route('/static/manifest.json')
+def manifest():
+    """Serve manifest.json"""
+    manifest = {
+        "name": "Password Manager",
+        "short_name": "Passwords",
+        "description": "Secure password manager with AES encryption",
+        "start_url": "/",
+        "display": "standalone",
+        "background_color": "#1a1a1a",
+        "theme_color": "#4a9eff",
+        "orientation": "portrait-primary",
+        "icons": [
+            {
+                "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkyIiBoZWlnaHQ9IjE5MiIgdmlld0JveD0iMCAwIDE5MiAxOTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxOTIiIGhlaWdodD0iMTkyIiByeD0iNDAiIGZpbGw9IiM0YTllZmYiLz4KPHN2ZyB4PSI0OCIgeT0iNDgiIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJ3aGl0ZSI+CjxwYXRoIGQ9Ik0xOCAxMGgtMVY2YzAtMi43Ni0yLjI0LTUtNS01UzIgMy4yNCAyIDZ2NGgtMWMtMS4xIDAtMiAuOS0yIDJ2MTBjMCAxLjEuOSAyIDIgMmgxNmMxLjEgMCAyLS45IDItMlYxMmMwLTEuMS0uOS0yLTItMnpNOC45IDZjMC0xLjcxIDEuMzktMy4xIDMuMS0zLjFzMy4xIDEuMzkgMy4xIDMuMXY0SDguOVY2eiIvPgo8L3N2Zz4KPC9zdmc+",
+                "sizes": "192x192",
+                "type": "image/svg+xml"
+            }
+        ]
+    }
+    return jsonify(manifest)
+
 @app.route('/favicon.ico')
 def favicon():
     """Favicon simple"""
@@ -815,11 +809,18 @@ def test():
 
 if __name__ == '__main__':
     print("🚀 Starting PWA Password Manager")
-    print("📱 Templates intégrés - pas besoin de dossiers externes")
+    print("📱 Templates intégrés - initialisation automatique")
+    
+    # Initialisation immédiate
+    try:
+        init_static_files()
+        print("✅ Static files initialized")
+    except Exception as e:
+        print(f"❌ Static files init error: {e}")
     
     app.run(
         host='0.0.0.0',
-        port=5000,
-        debug=True,  # Mode debug pour voir les erreurs
+        port=int(os.environ.get('PORT', 5000)),
+        debug=False,  # Mode production pour déploiement
         threaded=True
     )
