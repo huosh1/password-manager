@@ -11,6 +11,7 @@ from crypto import PasswordCrypto
 from dropbox_sync import DropboxSync
 import secrets
 import string
+import datetime
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16)
@@ -19,7 +20,32 @@ class PWAPasswordManager:
     def __init__(self):
         self.dropbox = DropboxSync()
         self.db_file = "passwords.db"
+     # ✅ AJOUTEZ CETTE NOUVELLE MÉTHODE
+    def create_dropbox_backup(self):
+        """Crée un backup horodaté sur Dropbox"""
+        if not os.path.exists(self.db_file):
+            return False
+        
+        try:
+            # Nom du backup avec date et heure
+            now = datetime.datetime.now()
+            backup_name = f"passwords-{now.strftime('%Y-%m-%d_%H-%M-%S')}.txt"
+            
+            # Upload du backup sur Dropbox
+            success = self.dropbox.upload(self.db_file, f"/{backup_name}")
+            if success:
+                print(f"📦 Backup créé sur Dropbox: {backup_name}")
+                return True
+            else:
+                print("⚠️  Backup Dropbox échoué")
+                return False
+                
+        except Exception as e:
+            print(f"⚠️  Backup warning: {e}")
+            return False
     
+    
+        
     def authenticate(self, master_password):
         """Authentification robuste"""
         try:
@@ -79,6 +105,7 @@ class PWAPasswordManager:
             print(f"Error loading passwords: {e}")
         return {}
     
+    # ✅ MODIFIEZ CETTE MÉTHODE EXISTANTE
     def save_database(self, auth_token, passwords):
         try:
             data = {
@@ -92,9 +119,14 @@ class PWAPasswordManager:
             print("✅ Database saved locally")
             
             try:
+                # Upload principal
                 success = self.dropbox.upload(self.db_file)
                 if success:
                     print("✅ Uploaded to Dropbox")
+                    
+                    # ✅ NOUVEAU : Backup automatique
+                    self.create_dropbox_backup()
+                    
             except Exception as e:
                 print(f"⚠️  Dropbox upload warning: {e}")
         

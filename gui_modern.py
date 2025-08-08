@@ -14,7 +14,7 @@ from dropbox_sync import DropboxSync
 import secrets
 import string
 import pyperclip
-
+import datetime
 # Configuration du thème
 ctk.set_appearance_mode("dark")  # "dark" ou "light"
 ctk.set_default_color_theme("blue")  # "blue", "green", "dark-blue"
@@ -277,7 +277,31 @@ class ModernPasswordManager:
         
         # Aucune base valide trouvée
         return None
+     # ✅ AJOUTEZ CETTE NOUVELLE MÉTHODE (après load_database)
+    def create_dropbox_backup(self):
+        """Crée un backup horodaté sur Dropbox"""
+        if not os.path.exists(self.db_file):
+            return False
+        
+        try:
+            # Nom du backup avec date et heure
+            now = datetime.datetime.now()
+            backup_name = f"passwords-{now.strftime('%Y-%m-%d_%H-%M-%S')}.txt"
+            
+            # Upload du backup sur Dropbox
+            success = self.dropbox.upload(self.db_file, f"/{backup_name}")
+            if success:
+                print(f"📦 Backup créé sur Dropbox: {backup_name}")
+                return True
+            else:
+                print("⚠️  Backup Dropbox échoué")
+                return False
+                
+        except Exception as e:
+            print(f"⚠️  Backup warning: {e}")
+            return False
     
+    # ✅ MODIFIEZ CETTE MÉTHODE EXISTANTE (vers ligne 200)
     def save_database(self, auth_token):
         """Sauvegarde la base avec gestion d'erreurs robuste"""
         try:
@@ -297,8 +321,8 @@ class ModernPasswordManager:
             
         except Exception as e:
             print(f"❌ Error saving database: {e}")
-            raise e  # Re-raise pour que l'appelant puisse gérer l'erreur
-    
+            raise e
+  
     def _upload_worker(self):
         """Upload vers Dropbox en arrière-plan avec retry"""
         max_retries = 3
@@ -309,6 +333,9 @@ class ModernPasswordManager:
                 success = self.dropbox.upload(self.db_file)
                 if success:
                     print("✅ Database uploaded to Dropbox")
+                    
+                    # ✅ NOUVEAU : Backup automatique
+                    self.create_dropbox_backup()
                     return
                 else:
                     print(f"⚠️  Upload attempt {attempt + 1} failed")
@@ -320,7 +347,7 @@ class ModernPasswordManager:
                 time.sleep(retry_delay)
         
         print("❌ All upload attempts failed (database saved locally only)")
-    
+        
     def create_main_interface(self):
         """Interface principale minimaliste"""
         self.clear_interface()
