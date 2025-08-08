@@ -1,0 +1,7 @@
+{
+  "app_key": "7i4j80vqutjnfcv",
+  "app_secret": "nt8ma48jxfvviu8",
+  "refresh_token": "t5fOPGUBEKYAAAAAAAAAAQI7uJdzC1auh9ZZtNcIAKX6e2TvX3CttSP5VVOSp5Jw",
+  "remote_path": "/passwords.db",
+  "_comment": "Refresh Token ne expire jamais - parfait pour production"
+}
