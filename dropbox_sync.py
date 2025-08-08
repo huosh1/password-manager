@@ -18,7 +18,23 @@ class DropboxSync:
     def _load_config(self):
         """Charge la configuration Dropbox avec Refresh Token"""
         try:
+            # PRIORITÉ 1: Variables d'environnement (pour Render/production)
+            env_app_key = os.environ.get('DROPBOX_APP_KEY')
+            env_app_secret = os.environ.get('DROPBOX_APP_SECRET') 
+            env_refresh_token = os.environ.get('DROPBOX_REFRESH_TOKEN')
+            
+            if all([env_app_key, env_app_secret, env_refresh_token]):
+                print("🌍 Using Environment Variables (production)")
+                self.dbx = dropbox.Dropbox(
+                    oauth2_refresh_token=env_refresh_token,
+                    app_key=env_app_key,
+                    app_secret=env_app_secret
+                )
+                return
+            
+            # PRIORITÉ 2: Fichier config.json (pour développement local)
             if os.path.exists(self.config_file):
+                print(f"📄 Reading config file: {self.config_file}")
                 with open(self.config_file, 'r') as f:
                     config = json.load(f)
                     
@@ -28,7 +44,7 @@ class DropboxSync:
                     refresh_token = config.get('refresh_token')
                     
                     if all([app_key, app_secret, refresh_token]):
-                        print("🔄 Using Refresh Token (never expires)")
+                        print("🔄 Using Refresh Token from config.json")
                         self.dbx = dropbox.Dropbox(
                             oauth2_refresh_token=refresh_token,
                             app_key=app_key,
@@ -45,11 +61,12 @@ class DropboxSync:
                     
                     print("❌ No valid Dropbox credentials in config.json")
             else:
-                print("⚠️  Fichier config.json introuvable")
+                print("⚠️  Config file not found, creating template")
                 self._create_config_template()
         
         except Exception as e:
-            print(f"⚠️  Erreur chargement config: {e}")
+            print(f"⚠️  Error loading config: {e}")
+            print("💡 Try using environment variables instead")
     
     def _create_config_template(self):
         """Crée un template de configuration avec Refresh Token"""
